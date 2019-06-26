@@ -14,10 +14,8 @@
 (defonce properties (atom {}))
 
 (s/defschema PropertiesSchema
-  (st/required-keys {"naga-http.kafka.topic" s/Str
-                     "naga-http.kafka.host" s/Str
-                     "naga-http.kafka.port" s/Int
-                     "naga-http.kafka.poll" s/Int}))
+  (st/required-keys {
+                     }))
 
 (def configurable-properties (mls/keys PropertiesSchema))
 

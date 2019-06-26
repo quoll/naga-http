@@ -5,14 +5,18 @@
             [cheshire.core :as json]
             [compojure.core :refer :all]
             [compojure.route :as route]
+            [compojure.response :refer :all]
+            ; [compojure.api.sweet :refer :all]
+            ; [ring.util.http-response :refer [not-found]]
             [naga.data :as data]
             [naga.engine :as e]
             [naga.lang.pabu :as pabu]
             [naga.rules :as r]
-            [naga.storage.memory.core]
+            [asami.core]
             [naga.store :as store]
+            [naga.store-registry :as store-registry]
             [naga-http.configuration :as c]
-            [naga-http.kafka :as kafka]
+            [ring.middleware.json-response :refer [wrap-json-response]]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]])
   (:import [java.util Date]))
 
@@ -22,7 +26,7 @@
 
 (def programs (atom {}))
 
-(def ^:const default-graph (store/get-storage-handle {:type :memory}))
+(def ^:const default-graph (store-registry/get-storage-handle {:type :memory}))
 
 (def ^:const default-store {:type :memory :store default-graph})
 
@@ -32,7 +36,7 @@
   (str (java.util.UUID/randomUUID)))
 
 (defn register-store! [s]
-  (let [g (store/get-storage-handle s)]
+  (let [g (store-registry/get-storage-handle s)]
     (reset! storage (assoc s :store g)))
   {:headers plain-headers
    :body (:type s)})
@@ -47,6 +51,9 @@
 
 (defn registered-storage []
   (or @storage default-store))
+
+(defn load-graph [g]
+  (println "data: " g))
 
 (defn parse-program [text]
   (let [{rules :rules} (pabu/read-str text)]
@@ -88,7 +95,7 @@
   (when-let [program (get @programs uuid)]
     (let [storage (registered-storage)
           store (or (:store storage)
-                    (store/get-storage-handle storage))
+                    (store-registry/get-storage-handle storage))
           [output new-store] (execute-program program store s)]
       (update-store! new-store)
       {:headers json-headers
@@ -98,17 +105,24 @@
   (when-let [program (or program (get @programs uuid))]
     (let [storage (or storage-config (registered-storage))
           store (or (:store storage)
-                    (store/get-storage-handle storage))
+                    (store-registry/get-storage-handle storage))
           [output new-store] (execute-program program store nil)]
       (when-not storage-config
         (update-store! new-store))
       {:headers json-headers
        :body output})))
 
+(defn test-response
+  [request]
+  {:headers json-headers
+   :body {:data "data"}})
+
 (defroutes app-routes
   ;; TODO: post data to graph
+  (GET    "/data" request (test-response request))
   (POST   "/store" request (register-store! (:body request)))
   (DELETE "/store" request (reset-store!))
+  (POST   "/graph" request (load-graph (:body request)))
   (POST   "/rules" request (post-program (:body request)))
   (DELETE "/rules" request (delete-programs))
   (GET    "/rules/:uuid" [uuid] (get-program uuid))
@@ -119,15 +133,8 @@
 
 (def app
   (wrap-defaults
-   app-routes
+   (wrap-json-response app-routes)
    (assoc-in api-defaults [:params :multipart] true)))
 
-(defn init
-  "Initialize the server for non-HTTP operations."
-  []
-  (c/init!)
-  (kafka/init (get-in @c/properties [:http-naga :kafka :topic]))
-  (kafka/register-storage storage))
-
 ;; TODO: main, starting a web server
-(init)
+(c/init!)
