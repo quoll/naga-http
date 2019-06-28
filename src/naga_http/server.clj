@@ -12,9 +12,10 @@
             [naga.engine :as e]
             [naga.lang.pabu :as pabu]
             [naga.rules :as r]
-            [asami.core]
+            [asami.core :as asami]
             [naga.store :as store]
             [naga.store-registry :as store-registry]
+            [appa.core :as appa]
             [naga-http.configuration :as c]
             [ring.middleware.json-response :refer [wrap-json-response]]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]])
@@ -26,9 +27,9 @@
 
 (def programs (atom {}))
 
-(def ^:const default-graph (store-registry/get-storage-handle {:type :memory}))
+(def ^:const default-graph (store-registry/get-storage-handle {:type :memory-multi}))
 
-(def ^:const default-store {:type :memory :store default-graph})
+(def ^:const default-store {:type :memory-multi :store default-graph})
 
 (def storage (atom default-store))
 
@@ -112,14 +113,29 @@
       {:headers json-headers
        :body output})))
 
-(defn test-response
-  [request]
-  {:headers json-headers
-   :body {:data "data"}})
+(defn upload
+  [{data :body :as request}]
+  (let [store (:store (registered-storage))
+        triples (data/json->triples store data)]
+    (update-store! (store/assert-data store triples))))
+
+(defn query-store
+  [{{q-data :query} :body :as request}]
+  (let [result (asami/q q-data (:store (registered-storage)))]
+    {:headers json-headers
+     :body {:data result}}))
+
+(defn jquery-store
+  [{{jq-text :query} :body :as request}]
+  (let [jq (appa/jq->graph-query jq-text)
+        result (asami/q jq (:store (registered-storage)))]
+    {:headers json-headers
+     :body {:data result}}))
 
 (defroutes app-routes
-  ;; TODO: post data to graph
-  (GET    "/data" request (test-response request))
+  (GET    "/data" request (query-store request))
+  (GET    "/jq" request (jquery-store request))
+  (POST   "/data" request (upload request))
   (POST   "/store" request (register-store! (:body request)))
   (DELETE "/store" request (reset-store!))
   (POST   "/graph" request (load-graph (:body request)))
