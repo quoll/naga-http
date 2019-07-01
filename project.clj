@@ -15,6 +15,7 @@
                  [ring/ring-defaults "0.3.2"]
                  [ring/ring-jetty-adapter "1.7.1"]
                  [ring-json-response "0.2.0"]
+                 [ring/ring-json "0.4.0"]
                  [ring-middleware-format "0.7.4"]]
   :resource-paths ["resources"]
   :classpath ".:resources"

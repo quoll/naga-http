@@ -2,6 +2,7 @@
       :author "Jesse Bouwman"}
     naga-http.server
   (:require [clojure.tools.logging :as log]
+            [clojure.pprint :refer [pprint]]
             [cheshire.core :as json]
             [compojure.core :refer :all]
             [compojure.route :as route]
@@ -17,7 +18,8 @@
             [naga.store-registry :as store-registry]
             [appa.core :as appa]
             [naga-http.configuration :as c]
-            [ring.middleware.json-response :refer [wrap-json-response]]
+            [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
+            ; [ring.middleware.json-response :refer [wrap-json-response]]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]])
   (:import [java.util Date]))
 
@@ -115,8 +117,12 @@
 
 (defn upload
   [{data :body :as request}]
+  (println "KEYS: " request)
+  (println "INCOMING: " data)
   (let [store (:store (registered-storage))
         triples (data/json->triples store data)]
+    (println "TRIPLES")
+    (pprint triples)
     (update-store! (store/assert-data store triples))))
 
 (defn query-store
@@ -149,7 +155,8 @@
 
 (def app
   (wrap-defaults
-   (wrap-json-response app-routes)
+   (wrap-json-body
+    (wrap-json-response app-routes))
    (assoc-in api-defaults [:params :multipart] true)))
 
 ;; TODO: main, starting a web server
