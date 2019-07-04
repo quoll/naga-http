@@ -124,6 +124,18 @@
         triples (data/json->triples store data)]
     (update-store! (store/assert-data store triples))))
 
+(defn upload-snapshot
+  [{{actions :actions :as body} :body :as request}]
+  (if (empty? actions)
+    {:status 400
+     :body (str "<html><head><title>Bad Request</title></head><body><p>Unable to parse body:</p><pre>"
+                body
+                "</pre></body></html>")}
+    (let [data (json/parse-string actions true)
+          store (:store (registered-storage))
+          triples (data/json->triples store data)]
+      (update-store! (store/assert-data store triples)))))
+
 (defn retrieve-store
   [{body :body :as request}]
   (let [result (data/store->json (:store (registered-storage)))]
@@ -145,16 +157,16 @@
   (if (empty? jq-text)
     {:status 400
      :body "<html><head><title>Bad Request</title></head><body><p>Query not provided</p></body></html>"}
-    (let [[v jq] (appa/jq->graph-query jq-text)
-          result (asami/q (concat [:find v :where] jq) (:store (registered-storage)))]
+    (let [result (appa/query-objects (:store (registered-storage)) jq-text)]
       {:headers json-headers
-       :body {:data result}})))
+       :body result})))
 
 (defroutes app-routes
   (GET    "/data" request (retrieve-store request))
   (GET    "/query" request (query-store request))
   (GET    "/jq" request (jquery-store request))
   (POST   "/data" request (upload request))
+  (POST   "/snapshot" request (upload-snapshot request))
   (POST   "/store" request (register-store! (:body request)))
   (DELETE "/store" request (reset-store!))
   (POST   "/graph" request (load-graph (:body request)))
