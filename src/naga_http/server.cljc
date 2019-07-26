@@ -146,7 +146,11 @@
   [{{q-text :query} :params :as request}]
   (if (empty? q-text)
     {:status 400
-     :body "<html><head><title>Bad Request</title></head><body><p>Query not provided</p></body></html>"}
+     ; :body "<html><head><title>Bad Request</title></head><body><p>Query not provided</p></body></html>"
+     :body (str "<html><head><title>Bad Request</title></head><body><p>Query not provided</p><br/><pre>"
+                request
+                "</pre></body></html>")
+     }
     (let [q-data (read-edn (str "[" q-text "]"))
           result (asami/q q-data (:store (registered-storage)))]
       {:headers json-headers
